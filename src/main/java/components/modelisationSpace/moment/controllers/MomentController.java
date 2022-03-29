@@ -2,18 +2,13 @@ package components.modelisationSpace.moment.controllers;
 
 import application.configuration.Configuration;
 import application.history.HistoryManager;
-import components.modelisationSpace.controllers.ModelisationSpaceController;
 import components.modelisationSpace.hooks.ModelisationSpaceHookNotifier;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.Image;
 import javafx.scene.input.*;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Text;
-import javafx.scene.text.TextAlignment;
 import models.Descripteme;
 import components.modelisationSpace.appCommand.ScrollPaneCommandFactory;
 import components.modelisationSpace.category.appCommands.ConcreteCategoryCommandFactory;
@@ -40,13 +35,10 @@ import utils.dragAndDrop.DragStore;
 import utils.modelControllers.ListView.ListView;
 import utils.modelControllers.ListView.ListViewController;
 import utils.modelControllers.ListView.ListViewUpdate;
-import utils.popups.TextEntryController;
 import utils.popups.WarningPopup;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.ResourceBundle;
 
 
@@ -153,8 +145,12 @@ public class MomentController extends ListViewController<Moment> implements Init
 
         //Listeners SETUP
         //bottom separator works only when there is no child yet !
+
         separatorBottom.setOnDragDoneDescripteme(descripteme -> childCmdFactory.addSiblingCommand(new Moment("Moment"), descripteme).execute());
+
         separatorBottom.setOnDragDoneCategory(category -> childCmdFactory.addSiblingCommand(new Moment("Moment"), category).execute());
+
+
         separatorBottom.setOnDragDoneShemaCategory(category -> childCmdFactory.addSiblingCommand(new Moment("Moment"), category, this.moment).execute());
         // category -> { cmdFactory.addSiblingCommand(new Moment("Moment"), category, 0).execute(); }
         separatorBottom.setOnDragMomentDone((moment, originParent) -> childCmdFactory.moveMomentCommand(moment, originParent).execute());
@@ -183,7 +179,7 @@ public class MomentController extends ListViewController<Moment> implements Init
         menuButton.getItems().add(deleteButton);
 
         MenuItem renameButton = new MenuItem(Configuration.langBundle.getString("rename"));
-        renameButton.setOnAction(actionEvent -> cmdFactory.renameCommand(moment).execute());
+        renameButton.setOnAction(actionEvent -> passInRenamingMode(true));
         menuButton.getItems().add(renameButton);
 
         addColorChange();
@@ -198,7 +194,6 @@ public class MomentController extends ListViewController<Moment> implements Init
             } catch (Error error) {
                 WarningPopup.display(Configuration.langBundle.getString("transitional_warning"));
             }
-            displayTransitional();
         });
         menuButton.getItems().add(transitionButton);
         grid.add(transitionPane, 1, 1);
@@ -329,14 +324,13 @@ public class MomentController extends ListViewController<Moment> implements Init
                 renamingField.selectAll();
 
                 renamingField.focusedProperty().addListener((obs, oldVal, newVal) -> {
-                    if (!newVal)
+                    if (!newVal){   //unfocus
                         passInRenamingMode(false);
+                    }
                 });
 
                 renamingField.setOnKeyPressed(keyEvent -> {
                     if(keyEvent.getCode() == KeyCode.ENTER) {
-                        if(renamingField.getLength() > 0)
-                        HistoryManager.addCommand(new RenameMoment(moment, renamingField.getText()), true);
                         passInRenamingMode(false);
                     }
                 });
@@ -346,8 +340,9 @@ public class MomentController extends ListViewController<Moment> implements Init
                 renamingMode = true;
             }
             else {
-                if(renamingField.getLength() > 0)
+                if(renamingField.getLength() > 0 && !momentName.getText().equals(renamingField.getText())) {
                     HistoryManager.addCommand(new RenameMoment(moment, renamingField.getText()), true);
+                }
                 this.nameBox.getChildren().clear();
                 this.nameBox.getChildren().add(momentName);
                 renamingMode = false;
@@ -355,7 +350,7 @@ public class MomentController extends ListViewController<Moment> implements Init
         }
     }
 
-    private void displayTransitional() {
+    public void displayTransitional() {
         double depth;
         String color = getTransitionColor();
         transitionBox.setMaxHeight(0);
@@ -491,6 +486,14 @@ public class MomentController extends ListViewController<Moment> implements Init
                     dragEvent.acceptTransferModes(TransferMode.MOVE);
                     dragEvent.consume();
                 }
+                //Moment
+                else if (
+                        DragStore.getDraggable().getDataFormat() == Moment.format
+                        && !moment.equals(DragStore.getDraggable())
+                ) {
+                    dragEvent.acceptTransferModes(TransferMode.MOVE);
+                    dragEvent.consume();
+                }
             }
         });
 
@@ -513,12 +516,16 @@ public class MomentController extends ListViewController<Moment> implements Init
                 dragEvent.setDropCompleted(true);
                 dragEvent.consume();
             }
+            else if(DragStore.getDraggable().getDataFormat() == Moment.format) {
+                cmdFactory.mergeMomentCommand(moment, DragStore.getDraggable(),  true).execute();
+                dragEvent.setDropCompleted(true);
+                dragEvent.consume();
+            }
         });
 
         momentContainer.setOnDragExited(dragEvent -> categoryDropper.setStyle("-fx-opacity: 1;"));
 
         momentContainer.setOnDragDetected(event -> {
-            System.out.println(" moment drag detected");
             Dragboard db = momentContainer.startDragAndDrop(TransferMode.MOVE);
             ClipboardContent content = new ClipboardContent();
             content.put(moment.getDataFormat(), 0);
