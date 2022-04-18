@@ -12,7 +12,8 @@ import utils.command.Executable;
 import utils.popups.MergerPopup;
 import utils.popups.WarningPopup;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+
 
 public class MergeMomentCommand implements Executable<Void> {
     private ModelisationSpaceHookNotifier hookNotifier;
@@ -31,25 +32,67 @@ public class MergeMomentCommand implements Executable<Void> {
 
     private boolean confirmationMessage() {
         StringBuilder message = new StringBuilder();
-        AtomicBoolean confirmationNeeded = new AtomicBoolean(false);
 
+        //information part
+        message.append(Configuration.langBundle.getString("merge_information_p1"))
+                .append(" \"").append(sourceMoment.getName()).append("\" ")
+                .append(Configuration.langBundle.getString("merge_information_p2"))
+                .append(" \"").append(destinationMoment.getName()).append("\".\n\n");
+
+        //add part
+        message.append(Configuration.langBundle.getString("merge_add_info"))
+                .append(" \"").append(destinationMoment.getName()).append("\" :\n");
+
+        message.append("\t- ").append(Configuration.langBundle.getString("merge_add_moment_descriptem"))
+                .append(" \"").append(sourceMoment.getName()).append("\"\n");
+
+
+        ArrayList<String> categoryNames = new ArrayList<>();
         sourceMoment.concreteCategoriesProperty().forEach(category -> {
-            if (!destinationMoment.hadThisCategory(category)) return;   //return of the lambda function, not global fonction
-            confirmationNeeded.set(true);
-            ConcreteCategory destinationCategory = destinationMoment.getCategory(category);
-
-            //message for category to merge
-            message.append(category.getName()).append(" :\n");
-            message.append(new MergeConcreteCategoryCommand(null, destinationCategory, category, false).buildMessage());
-            message.append("\n");
+            if (!destinationMoment.hadThisCategory(category)) {
+                categoryNames.add(category.getName());
+            }
         });
 
-        if(!confirmationNeeded.get()) {
-            return true;
+        if (!categoryNames.isEmpty()){
+            message.append("\t- ").append(Configuration.langBundle.getString("merge_add_category_p1"))
+                    .append(" \"").append(destinationMoment.getName()).append("\" ")
+                    .append(Configuration.langBundle.getString("merge_add_category_p2"))
+                    .append(" \"").append(sourceMoment.getName()).append("\" ");
+
+            String ctgNames = categoryNames.toString();
+            ctgNames = "(" + ctgNames.substring(1, ctgNames.length()-1) + ")";
+
+            message.append(ctgNames)
+                    .append(Configuration.langBundle.getString("merge_add_category_p3")).append("\n\n");
         }
 
+
+        //merge part
+        StringBuilder allCategoriesMessage = new StringBuilder();
+
+        sourceMoment.concreteCategoriesProperty().forEach(category -> {
+            if (!destinationMoment.hadThisCategory(category)) return;
+
+            ConcreteCategory destinationCategory = destinationMoment.getCategory(category);
+
+            StringBuilder cc = new MergeConcreteCategoryCommand(null, destinationCategory, category, false).buildMessage();
+            //message for category to merge
+            if (!cc.isEmpty()){
+                allCategoriesMessage.append("\t- ").append(category.getName()).append(" :\n")
+                        .append(cc);
+            }
+
+        });
+
+        if (!allCategoriesMessage.isEmpty()) {
+            message.append(Configuration.langBundle.getString("merge_merge_category")).append(" :\n");
+            message.append(allCategoriesMessage).append('\n');
+        }
+
+        //end part
         message.append(Configuration.langBundle.getString("merge_confirmation"));
-        MergerPopup mp = MergerPopup.display(message.toString(), sourceMoment.getName());
+        MergerPopup mp = MergerPopup.display(message.toString());
         return mp.getState() == DialogState.SUCCESS;
 
     }
