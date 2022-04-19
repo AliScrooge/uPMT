@@ -5,6 +5,8 @@ import components.modelisationSpace.category.appCommands.AddConcreteCategoryComm
 import components.modelisationSpace.category.appCommands.MergeConcreteCategoryCommand;
 import components.modelisationSpace.hooks.ModelisationSpaceHookNotifier;
 import components.modelisationSpace.justification.appCommands.AddDescriptemeCommand;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import models.ConcreteCategory;
 import models.Moment;
 import utils.DialogState;
@@ -12,7 +14,8 @@ import utils.command.Executable;
 import utils.popups.MergerPopup;
 import utils.popups.WarningPopup;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+
 
 public class MergeMomentCommand implements Executable<Void> {
     private ModelisationSpaceHookNotifier hookNotifier;
@@ -31,27 +34,65 @@ public class MergeMomentCommand implements Executable<Void> {
 
     private boolean confirmationMessage() {
         StringBuilder message = new StringBuilder();
-        AtomicBoolean confirmationNeeded = new AtomicBoolean(false);
 
+        //information part
+        message.append(Configuration.langBundle.getString("merge_information_p1"))
+                .append(" \"").append(sourceMoment.getName()).append("\" ")
+                .append(Configuration.langBundle.getString("merge_information_p2"))
+                .append(" \"").append(destinationMoment.getName()).append("\".\n\n");
+
+        //add part
+        message.append(Configuration.langBundle.getString("merge_add_info"))
+                .append(" \"").append(destinationMoment.getName()).append("\" :\n");
+
+        message.append("\t- ").append(Configuration.langBundle.getString("merge_add_moment_descriptem"))
+                .append(" \"").append(sourceMoment.getName()).append("\"\n");
+
+
+        ArrayList<String> categoryNames = new ArrayList<>();
         sourceMoment.concreteCategoriesProperty().forEach(category -> {
-            if (!destinationMoment.hadThisCategory(category)) return;   //return of the lambda function, not global fonction
-            confirmationNeeded.set(true);
-            ConcreteCategory destinationCategory = destinationMoment.getCategory(category);
-
-            //message for category to merge
-            message.append(category.getName()).append(" :\n");
-            message.append(new MergeConcreteCategoryCommand(null, destinationCategory, category, false).buildMessage());
-            message.append("\n");
+            if (!destinationMoment.hadThisCategory(category)) {
+                categoryNames.add(category.getName());
+            }
         });
 
-        if(!confirmationNeeded.get()) {
-            return true;
+        if (!categoryNames.isEmpty()){
+            String ctgNames = categoryNames.toString();
+            ctgNames = ctgNames.substring(1, ctgNames.length()-1);
+
+            if (categoryNames.size() == 1) {
+                message.append("\t- ").append(Configuration.langBundle.getString("merge_add_category_p1"))
+                        .append(' ').append(ctgNames).append(' ')
+                        .append(Configuration.langBundle.getString("merge_add_category_p2")).append("\n\n");
+            }
+            else {
+                message.append("\t- ").append(Configuration.langBundle.getString("merge_add_category_p1_pluriel"))
+                        .append(' ').append(ctgNames).append(' ')
+                        .append(Configuration.langBundle.getString("merge_add_category_p2_pluriel")).append("\n\n");
+            }
         }
 
-        message.append(Configuration.langBundle.getString("merge_confirmation"));
-        MergerPopup mp = MergerPopup.display(message.toString(), sourceMoment.getName());
-        return mp.getState() == DialogState.SUCCESS;
 
+        //merge part
+        sourceMoment.concreteCategoriesProperty().forEach(category -> {
+            if (!destinationMoment.hadThisCategory(category)) return;
+
+            ConcreteCategory destinationCategory = destinationMoment.getCategory(category);
+
+            StringBuilder cc = new MergeConcreteCategoryCommand(null, destinationCategory, category, false).buildMessage();
+            //message for category to merge
+            if (!cc.isEmpty()){
+                message.append(Configuration.langBundle.getString("merge_add_category_p1")).append(' ')
+                        .append(category.getName()).append(' ')
+                        .append(Configuration.langBundle.getString("merge_merge_category")).append(" :\n")
+                        .append(cc).append('\n');
+            }
+        });
+
+        //end part
+        message.append(Configuration.langBundle.getString("merge_confirmation"));
+        MergerPopup mp = MergerPopup.display(message.toString());
+        return mp.getState() == DialogState.SUCCESS;
     }
 
     @Override
