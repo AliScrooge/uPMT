@@ -3,10 +3,8 @@ package components.schemaTree.Cell.Visitors;
 import components.schemaTree.Cell.SchemaTreeContainer;
 import components.schemaTree.Cell.SchemaTreePluggable;
 import components.schemaTree.Section;
-import models.SchemaCategory;
-import models.SchemaFolder;
-import models.SchemaProperty;
-import models.SchemaTreeRoot;
+import components.toolbox.models.SchemaMomentType;
+import models.*;
 import utils.reactiveTree.ReactiveTreeElement;
 
 public class CreateSchemaTreeItemVisitor extends SchemaTreePluggableVisitor {
@@ -38,6 +36,11 @@ public class CreateSchemaTreeItemVisitor extends SchemaTreePluggableVisitor {
 
     @Override
     public void visit(SchemaProperty element) {
+        result = new ReactiveTreeElement<SchemaTreePluggable>(element);
+    }
+
+    @Override
+    public void visit(SchemaMomentType element) {
         result = new ReactiveTreeElement<SchemaTreePluggable>(element);
     }
 
