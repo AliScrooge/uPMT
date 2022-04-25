@@ -2,7 +2,7 @@ package components.modelisationSpace.moment.appCommands;
 
 import application.configuration.Configuration;
 import components.modelisationSpace.category.appCommands.AddConcreteCategoryCommand;
-import components.modelisationSpace.category.appCommands.MergeConcreteCategoryCommand;
+import components.modelisationSpace.category.appCommands.RemoveConcreteCategoryCommand;
 import components.modelisationSpace.hooks.ModelisationSpaceHookNotifier;
 import components.modelisationSpace.justification.appCommands.AddDescriptemeCommand;
 import models.ConcreteCategory;
@@ -12,7 +12,8 @@ import utils.command.Executable;
 import utils.popups.MergerPopup;
 import utils.popups.WarningPopup;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+
 
 public class MergeMomentCommand implements Executable<Void> {
     private ModelisationSpaceHookNotifier hookNotifier;
@@ -29,29 +30,85 @@ public class MergeMomentCommand implements Executable<Void> {
         this.userCommand = userCommand;
     }
 
+    public StringBuilder buildRemplacementCategoryMessage(ConcreteCategory sourceCategory, ConcreteCategory destinationCategory) {
+        StringBuilder message = new StringBuilder();
+        sourceCategory.propertiesProperty().forEach(sourceProperty -> {
+            int sourcePropertyIndex = sourceCategory.propertiesProperty().indexOf(sourceProperty);
+            String destinationPropertyValue = destinationCategory.propertiesProperty().get(sourcePropertyIndex).getValue();
+
+            if (sourceProperty.getValue().equals(destinationPropertyValue)) return;
+
+
+            message.append("\t- ").append(sourceProperty.getName()).append(" : ");
+            message.append('"').append(destinationPropertyValue).append('"');
+            message.append(' ').append(Configuration.langBundle.getString("merge_be_replaced")).append(' ');
+            message.append('"').append(sourceProperty.getValue()).append("\"\n");
+        });
+        if (message.isEmpty()) {
+            message.append('\t').append(Configuration.langBundle.getString("merge_empty_category_replacement")).append('\n');
+        }
+        return message;
+    }
+
     private boolean confirmationMessage() {
         StringBuilder message = new StringBuilder();
-        AtomicBoolean confirmationNeeded = new AtomicBoolean(false);
 
+        //information part
+        message.append(Configuration.langBundle.getString("merge_information_p1"))
+                .append(" \"").append(sourceMoment.getName()).append("\" ")
+                .append(Configuration.langBundle.getString("merge_information_p2"))
+                .append(" \"").append(destinationMoment.getName()).append("\".\n\n");
+
+        //add part
+        message.append(Configuration.langBundle.getString("merge_add_info"))
+                .append(" \"").append(destinationMoment.getName()).append("\" :\n");
+
+        message.append("\t- ").append(Configuration.langBundle.getString("merge_add_moment_descriptem"))
+                .append(" \"").append(sourceMoment.getName()).append("\"\n");
+
+
+        ArrayList<String> categoryNames = new ArrayList<>();
         sourceMoment.concreteCategoriesProperty().forEach(category -> {
-            if (!destinationMoment.hadThisCategory(category)) return;   //return of the lambda function, not global fonction
-            confirmationNeeded.set(true);
-            ConcreteCategory destinationCategory = destinationMoment.getCategory(category);
-
-            //message for category to merge
-            message.append(category.getName()).append(" :\n");
-            message.append(new MergeConcreteCategoryCommand(null, destinationCategory, category, false).buildMessage());
-            message.append("\n");
+            if (!destinationMoment.hadThisCategory(category)) {
+                categoryNames.add(category.getName());
+            }
         });
 
-        if(!confirmationNeeded.get()) {
-            return true;
+        if (!categoryNames.isEmpty()){
+            String ctgNames = categoryNames.toString();
+            ctgNames = ctgNames.substring(1, ctgNames.length()-1);
+
+            if (categoryNames.size() == 1) {
+                message.append("\t- ").append(Configuration.langBundle.getString("merge_add_category_p1"))
+                        .append(' ').append(ctgNames).append(' ')
+                        .append(Configuration.langBundle.getString("merge_add_category_p2")).append("\n\n");
+            }
+            else {
+                message.append("\t- ").append(Configuration.langBundle.getString("merge_add_category_p1_pluriel"))
+                        .append(' ').append(ctgNames).append(' ')
+                        .append(Configuration.langBundle.getString("merge_add_category_p2_pluriel")).append("\n\n");
+            }
         }
 
-        message.append(Configuration.langBundle.getString("merge_confirmation"));
-        MergerPopup mp = MergerPopup.display(message.toString(), sourceMoment.getName());
-        return mp.getState() == DialogState.SUCCESS;
 
+        //replacement part
+        sourceMoment.concreteCategoriesProperty().forEach(category -> {
+            if (!destinationMoment.hadThisCategory(category)) return;
+
+            ConcreteCategory destinationCategory = destinationMoment.getCategory(category);
+
+            //message for category to replace
+            StringBuilder cc = buildRemplacementCategoryMessage(category, destinationCategory);
+            message.append(Configuration.langBundle.getString("merge_add_category_p1")).append(' ')
+                    .append(category.getName()).append(' ')
+                    .append(Configuration.langBundle.getString("merge_merge_category")).append(' ')
+                    .append(sourceMoment.getName()).append(" :\n").append(cc).append('\n');
+        });
+
+        //end part
+        message.append(Configuration.langBundle.getString("merge_confirmation"));
+        MergerPopup mp = MergerPopup.display(message.toString());
+        return mp.getState() == DialogState.SUCCESS;
     }
 
     @Override
@@ -74,15 +131,13 @@ public class MergeMomentCommand implements Executable<Void> {
 
         //Copy categories
         sourceMoment.concreteCategoriesProperty().forEach(category -> {
-            if (!destinationMoment.hadThisCategory(category)) {
-                //add category
-                new AddConcreteCategoryCommand(hookNotifier, destinationMoment, category, userCommand).execute();
-            }
-            else {
-                //Merge category
+            if (destinationMoment.hadThisCategory(category)) {
+                //delete old category
                 ConcreteCategory destinationCC = destinationMoment.getCategory(category);
-                new MergeConcreteCategoryCommand(hookNotifier, destinationCC, category, userCommand, false).execute();
+                new RemoveConcreteCategoryCommand(hookNotifier, destinationMoment, destinationCC, destinationCC.getController(), userCommand).execute();
             }
+            new AddConcreteCategoryCommand(hookNotifier, destinationMoment, category, userCommand).execute();
+
             if (userCommand) userCommand = false;
         });
 
