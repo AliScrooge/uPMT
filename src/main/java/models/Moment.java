@@ -3,7 +3,10 @@ package models;
 import application.history.HistoryManager;
 import components.modelisationSpace.category.modelCommands.RemoveConcreteCategory;
 import components.modelisationSpace.moment.controllers.MomentController;
-import javafx.beans.property.*;
+import javafx.beans.property.ListProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleListProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -115,6 +118,18 @@ public class Moment extends RootMoment implements IDraggable {
         this.color = new SimpleStringProperty(color);
     }
 
+    public Moment(String name, String comment, boolean commentVisible, Justification j, boolean collapsed, boolean transitional, String color, ListProperty<ConcreteCategory> categories) {
+        super();
+        this.name = new SimpleStringProperty(name);
+        this.comment = new SimpleStringProperty(comment);
+        this.justification = j;
+        this.categories = categories;
+        this.commentVisible = new SimpleBooleanProperty(commentVisible);
+        this.collapsed = new SimpleBooleanProperty(collapsed);
+        this.transitional = new SimpleBooleanProperty(transitional);
+        this.color = new SimpleStringProperty(color);
+    }
+
     public void setName(String name) {
         this.name.set(name);
     }
@@ -158,30 +173,24 @@ public class Moment extends RootMoment implements IDraggable {
     public void addParent(RootMoment parent) {this.parent = parent;}
 
     public void addCategory(ConcreteCategory cc) {
-        categories.add(cc);
+        boolean added = false;
+        for (int i = 0; i < categories.size(); i++) {
+            if (0 < categories.get(i).getName().compareTo(cc.getName())) {
+                categories.add(i, cc);
+                added = true;
+                break;
+            }
+        }
+        if (!added) categories.add(cc);
+
         bindListener(cc);
     }
 
-    public void addCategory(int index, ConcreteCategory cc) {
-        if(index == categories.size()) {
-            addCategory(cc);
-        }
-        else {
-            categories.add(index, cc);
-            bindListener(cc);
-        }
-     }
     public void removeCategory(ConcreteCategory cc) {
         categories.remove(cc);
     }
     public ObservableList<ConcreteCategory> concreteCategoriesProperty() { return categories; }
-    public int indexOfConcreteCategory(ConcreteCategory cc) {
-        int index = -1;
-        for(int i = 0; i < categories.size(); i++)
-            if(categories.get(i) == cc)
-                return i;
-        return index;
-    }
+
     public int indexOfSchemaCategory(SchemaCategory sc) {
         int index = -1;
         for(int i = 0; i < categories.size(); i++)
@@ -256,6 +265,18 @@ public class Moment extends RootMoment implements IDraggable {
     @Override
     public boolean isDraggable() {
         return true;
+    }
+
+    public void setJustification(Justification justification) {
+        this.justification = justification;
+    }
+
+    public void setCategories(ObservableList<ConcreteCategory> categories) {
+        this.categories.set(categories);
+    }
+
+    public ObservableList<ConcreteCategory> getCategories() {
+        return categories.get();
     }
 
 }
